@@ -1,0 +1,18 @@
+﻿<Window x:Class="ChangeImage.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:local="clr-namespace:ChangeImage"
+        mc:Ignorable="d"
+        Title="MainWindow" Height="450" Width="800">
+    <Grid>
+        <Button Content="Load Image" HorizontalAlignment="Left" VerticalAlignment="Top" Width="100" Click="LoadImage_Click"/>
+        <Button Content="Save Image" HorizontalAlignment="Left" VerticalAlignment="Top" Width="100" Click="SaveImage_Click" Margin="105,0,0,0"/>
+
+        <Image Name="LoadedImage" Margin="82,51,66,61" />
+        <Slider Name="ValueSlider" Minimum="0" Maximum="100" ValueChanged="ValueSlider_ValueChanged" TickFrequency="1" IsSnapToTickEnabled="True"
+                HorizontalAlignment="Center" VerticalAlignment="Bottom" Width="340"/>
+        <TextBlock Name="SliderValueText" HorizontalAlignment="Center" VerticalAlignment="Bottom" Margin="0,0,0,20" FontSize="16"/>
+    </Grid>
+</Window>
