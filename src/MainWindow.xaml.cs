@@ -1,16 +1,7 @@
 ﻿using Microsoft.Win32;
-using System.Drawing;
-using System.IO;
-using System.Text;
 using System.Windows;
-using System.Windows.Controls;
-using System.Windows.Data;
-using System.Windows.Documents;
-using System.Windows.Input;
-using System.Windows.Media;
 using System.Windows.Media.Imaging;
-using System.Windows.Navigation;
-using System.Windows.Shapes;
+
 
 namespace ChangeImage
 {
@@ -19,10 +10,12 @@ namespace ChangeImage
     /// </summary>
     public partial class MainWindow : Window
     {
-        private static BitmapImage _image;
+        private BitmapImage _image;
+        private List<BitmapSource> _images;
         public MainWindow()
         {
             InitializeComponent();
+            _images = new List<BitmapSource>();
         }
 
         private void LoadImage_Click(object sender, RoutedEventArgs e)
@@ -38,29 +31,50 @@ namespace ChangeImage
                 bitmap.EndInit();
                 _image = bitmap;
                 LoadedImage.Source = bitmap;
+                CulcalateImages(_image, openFileDialog.FileName);
             }
         }
 
         private async void ValueSlider_ValueChanged(object slender, RoutedEventArgs e)
         {
-            await Task.Delay(1200);
-            double percents = ValueSlider.Value;
+            await Task.Delay(520);
+            sbyte percents = (sbyte)ValueSlider.Value;
 
-            if (_image == null)
+            if (_image == null || _images == null)
                 return;
-             
-            LoadedImage.Source = await Services.DivideImagePixelService(_image, percents);
-            SliderValueText.Text = $"Value: {ValueSlider.Value}";
+
+            if (percents == 0)
+            {
+                LoadedImage.Source = _image;
+                SliderValueText.Text = $"Value: 0%";
+                return;
+            }
+            
+            int index = percents - 1;
+            
+            LoadedImage.Source = _images[index];
+            SliderValueText.Text = $"Value: {ValueSlider.Value}%";
         }
 
-        private async void SaveImage_Click(object slender, RoutedEventArgs e)
+        private void SaveImage_Click(object slender, RoutedEventArgs e)
         {
             if (LoadedImage.Source == null) 
                 return;
 
             BitmapSource bitmapSource = LoadedImage.Source as BitmapSource;
 
-            await Services.SaveImageWithDialog(bitmapSource);
+            ImageProcessingService.ImageProcessingService services = new ImageProcessingService.ImageProcessingService();
+            services.SaveImageWithDialog(bitmapSource);
+        }
+
+        private void CulcalateImages(BitmapImage bitmap, string path) 
+        {
+            ImageProcessingService.ImageProcessingService services = new ImageProcessingService.ImageProcessingService();
+
+            for (int i = 1; i < 100; i++)
+            {
+                _images.Add(services.DivideImagePixelServiceAsync(bitmap, percents: i, path));
+            }
         }
     }
 }

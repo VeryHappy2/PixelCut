@@ -1,55 +1,42 @@
-﻿
-using Microsoft.Win32;
-using System.Drawing;
+﻿using Microsoft.Win32;
 using System.IO;
+using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Media.Imaging;
 
-namespace ChangeImage
+namespace ChangeImage.ImageProcessingService
 {
-    internal static class Services
+    internal class ImageProcessingService
     {
-        public static async Task<WriteableBitmap> DivideImagePixelService(BitmapImage image, double percents)
+        internal WriteableBitmap DivideImagePixelServiceAsync(BitmapImage image, double percents, string path)
         {
             WriteableBitmap writeableBitmap = new WriteableBitmap(image);
             int totalPixels = writeableBitmap.PixelWidth * writeableBitmap.PixelHeight;
             int pixelsToDelete = (int)(totalPixels * percents / 100);
 
-            Random rand = new Random();
+            List<(int x, int y)> pixels = new List<(int x, int y)>();
 
-            writeableBitmap.Lock();
-
-            try
+            for (int y = 0; y < writeableBitmap.PixelHeight; y++)
             {
-                for (uint i = 0; i < pixelsToDelete; i++)
+                for (int x = 0; x < writeableBitmap.PixelWidth; x++)
                 {
-
-                    int x = rand.Next(writeableBitmap.PixelWidth);
-                    int y = rand.Next(writeableBitmap.PixelHeight);
-
-                    IntPtr buffer = writeableBitmap.BackBuffer + y * writeableBitmap.BackBufferStride + x * 4;
-
-                    int pixelValue = System.Runtime.InteropServices.Marshal.ReadInt32(buffer);
-
-                    if ((pixelValue & 0xFF000000) == 0)
-                    {
-                        i--;
-                        continue;
-                    }
-
-                    System.Runtime.InteropServices.Marshal.WriteInt32(buffer, 0x00000000);
+                    pixels.Add((x, y));
                 }
             }
-            finally
+
+            Random rand = new Random();
+            for (int i = pixels.Count - 1; i > 0; i--)
             {
-                writeableBitmap.AddDirtyRect(new Int32Rect(0, 0, writeableBitmap.PixelWidth, writeableBitmap.PixelHeight));
-                writeableBitmap.Unlock();
+                int j = rand.Next(i + 1);
+                (pixels[i], pixels[j]) = (pixels[j], pixels[i]);
             }
+
+            writeableBitmap = ChangePixelsToTransparent(bitmap: writeableBitmap, mixedPixels: pixels, pixelsToDelete);
 
             return writeableBitmap;
         }
 
-        public static async Task SaveImageWithDialog(BitmapSource image)
+        internal void SaveImageWithDialog(BitmapSource image)
         {
             SaveFileDialog saveFileDialog = new SaveFileDialog
             {
@@ -84,6 +71,27 @@ namespace ChangeImage
 
                 MessageBox.Show("The file was created!", "Saving file", MessageBoxButton.OK, MessageBoxImage.Information);
             }
+        }
+        private WriteableBitmap ChangePixelsToTransparent(WriteableBitmap bitmap, List<(int, int)> mixedPixels, int pixelsToDelete)
+        {
+            bitmap.Lock();
+
+            try
+            {
+                for (int i = 0; i < pixelsToDelete; i++)
+                {
+                    (int x, int y) = mixedPixels[i];
+                    IntPtr buffer = bitmap.BackBuffer + y * bitmap.BackBufferStride + x * 4;
+                    Marshal.WriteInt32(buffer, 0x00000000);
+                }
+            }
+            finally
+            {
+                bitmap.AddDirtyRect(new Int32Rect(0, 0, bitmap.PixelWidth, bitmap.PixelHeight));
+                bitmap.Unlock();
+            }
+
+            return bitmap;
         }
     }
 }
