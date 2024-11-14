@@ -4,11 +4,11 @@ using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Media.Imaging;
 
-namespace ChangeImage.ImageProcessingService
+namespace ChangeImage.Service
 {
     internal class ImageProcessingService
     {
-        internal WriteableBitmap DivideImagePixelServiceAsync(BitmapImage image, double percents, string path)
+        internal async Task<WriteableBitmap> DivideImagePixelServiceAsync(BitmapImage image, double percents, string path)
         {
             WriteableBitmap writeableBitmap = new WriteableBitmap(image);
             int totalPixels = writeableBitmap.PixelWidth * writeableBitmap.PixelHeight;
@@ -35,47 +35,38 @@ namespace ChangeImage.ImageProcessingService
 
             return writeableBitmap;
         }
-
-        internal void SaveImageWithDialog(BitmapSource image)
+        
+        internal BitmapImage LoadImage(string filePath)
         {
-            SaveFileDialog saveFileDialog = new SaveFileDialog
+            try
             {
-                Filter = "PNG Image|*.png|JPEG Image|*.jpg|BMP Image|*.bmp",
-                Title = "Save Image As",
-                FileName = "MyImage"
-            };
+                using (var stream = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.Read))
+                {
+                    using (var memoryStream = new MemoryStream())
+                    {
+                        stream.CopyTo(memoryStream);
+                        memoryStream.Position = 0;
 
-            if (saveFileDialog.ShowDialog() == true)
+                        var bitmap = new BitmapImage();
+                        bitmap.BeginInit();
+                        bitmap.CacheOption = BitmapCacheOption.OnLoad;
+                        bitmap.StreamSource = memoryStream;
+                        bitmap.EndInit();
+
+                        return bitmap;
+                    }
+                }
+            }
+            catch (IOException ex)
             {
-                string filePath = saveFileDialog.FileName;
-                string extension = Path.GetExtension(filePath).ToLower();
-
-                BitmapEncoder encoder;
-
-                switch (extension)
-                {
-                    case ".jpg":
-                        encoder = new JpegBitmapEncoder();
-                        break;
-                    default:
-                        encoder = new PngBitmapEncoder();
-                        break;
-                }
-
-                encoder.Frames.Add(BitmapFrame.Create(image));
-
-                using (FileStream stream = new FileStream(filePath, FileMode.Create))
-                {
-                    encoder.Save(stream);
-                }
-
-                MessageBox.Show("The file was created!", "Saving file", MessageBoxButton.OK, MessageBoxImage.Information);
+                MessageBox.Show($"Error loading image: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                return null!;
             }
         }
+
         private WriteableBitmap ChangePixelsToTransparent(WriteableBitmap bitmap, List<(int, int)> mixedPixels, int pixelsToDelete)
         {
             bitmap.Lock();
-
             try
             {
                 for (int i = 0; i < pixelsToDelete; i++)

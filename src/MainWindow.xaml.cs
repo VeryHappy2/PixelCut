@@ -1,7 +1,10 @@
 ﻿using Microsoft.Win32;
+using System.IO;
 using System.Windows;
 using System.Windows.Media.Imaging;
-
+using ChangeImage.Service;
+using System.Drawing;
+using ChangeImage.Services;
 
 namespace ChangeImage
 {
@@ -10,28 +13,44 @@ namespace ChangeImage
     /// </summary>
     public partial class MainWindow : Window
     {
+        private ImageProcessingService _imageProcessingService { get; set; }
+        private ManagmentImageService _managmentService { get; set; }
         private BitmapImage _image;
-        private List<BitmapSource> _images;
+
         public MainWindow()
         {
             InitializeComponent();
-            _images = new List<BitmapSource>();
+            _imageProcessingService = new ImageProcessingService();
+            _managmentService = new ManagmentImageService();
         }
 
-        private void LoadImage_Click(object sender, RoutedEventArgs e)
+        private async void LoadImage_Click(object sender, RoutedEventArgs e)
         {
             OpenFileDialog openFileDialog = new OpenFileDialog();
             openFileDialog.Filter = "Image Files (*.png;*.jpg;)|*.png;*.jpg;";
 
             if (openFileDialog.ShowDialog() == true)
             {
-                BitmapImage bitmap = new BitmapImage();
-                bitmap.BeginInit();
-                bitmap.UriSource = new Uri(openFileDialog.FileName);
-                bitmap.EndInit();
-                _image = bitmap;
+                LoadedImage.Source = null;
+                _image = null!;
+                ValueSlider.Value = 0;
+
+                if (!Directory.Exists("Cache"))
+                {
+                    Directory.CreateDirectory("Cache");
+                }
+
+                ValueSlider.IsEnabled = false;
+
+                string folderPath = Directory.GetCurrentDirectory();
+                string fullPath = Path.Combine(folderPath, "Cache");
+
+                await Task.Run(() => _managmentService.DeleteImagesFromData(fullPath));
+                BitmapImage bitmap = _imageProcessingService.LoadImage(openFileDialog.FileName);
                 LoadedImage.Source = bitmap;
-                CulcalateImages(_image, openFileDialog.FileName);
+                _image = bitmap;
+
+                await CalculateImagesAsync(_image, openFileDialog.FileName);
             }
         }
 
@@ -40,19 +59,22 @@ namespace ChangeImage
             await Task.Delay(520);
             sbyte percents = (sbyte)ValueSlider.Value;
 
-            if (_image == null || _images == null)
-                return;
-
             if (percents == 0)
             {
                 LoadedImage.Source = _image;
                 SliderValueText.Text = $"Value: 0%";
                 return;
             }
-            
-            int index = percents - 1;
-            
-            LoadedImage.Source = _images[index];
+
+            string currentDirectory = Directory.GetCurrentDirectory();
+            string fullPath = Path.Combine(currentDirectory, "Cache", $"image{percents}.png");
+
+            if (!File.Exists(fullPath))
+            {
+                return;
+            }
+
+            LoadedImage.Source = _imageProcessingService.LoadImage(fullPath);
             SliderValueText.Text = $"Value: {ValueSlider.Value}%";
         }
 
@@ -63,17 +85,43 @@ namespace ChangeImage
 
             BitmapSource bitmapSource = LoadedImage.Source as BitmapSource;
 
-            ImageProcessingService.ImageProcessingService services = new ImageProcessingService.ImageProcessingService();
-            services.SaveImageWithDialog(bitmapSource);
+            _managmentService.SaveImageWithDialog(bitmapSource);
         }
 
-        private void CulcalateImages(BitmapImage bitmap, string path) 
+        private async Task CalculateImagesAsync(BitmapImage bitmap, string path) 
         {
-            ImageProcessingService.ImageProcessingService services = new ImageProcessingService.ImageProcessingService();
+            string folderPath = "Cache";
+
+            if (!Directory.Exists(folderPath))
+            {
+                Directory.CreateDirectory(folderPath);
+            }
 
             for (int i = 1; i < 100; i++)
             {
-                _images.Add(services.DivideImagePixelServiceAsync(bitmap, percents: i, path));
+                var writeableBitmap = await _imageProcessingService.DivideImagePixelServiceAsync(bitmap, percents: i, path);
+                string filePathCreate = Path.Combine(folderPath, $"image{i}.png"); 
+
+                SaveWriteableBitmapToFile(writeableBitmap, filePathCreate);
+                ValueSlider.IsEnabled = true;
+            }
+        }
+
+        private void SaveWriteableBitmapToFile(WriteableBitmap writeableBitmap, string path)
+        {
+            try
+            {
+                BitmapEncoder encoder = new PngBitmapEncoder();
+                encoder.Frames.Add(BitmapFrame.Create(writeableBitmap));
+
+                using (FileStream fs = new FileStream(path, FileMode.Create))
+                {
+                    encoder.Save(fs);
+                }
+            }
+            catch (Exception e)
+            {
+                MessageBox.Show($"Error while the {path} was deleting: {e.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
     }
